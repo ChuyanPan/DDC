@@ -1,0 +1,118 @@
+module FSM_Blockcontrol#(
+parameter CLK_FREQ = 25_000_000
+)
+(
+input wire iClk, iRst,
+input wire[9:0] iPushUp, iPushDown, iPushLeft, iPushRight, iShapeX,iShapeY,iShapeLength,
+output wire [9:0] oBlockX, oBlockY
+    );
+  //for the squre coordinate and size
+  reg [9:0] r_Bx, r_By;
+ 
+
+ //10ms timer applying
+ wire w_en;
+ localparam clk = 250000;
+ timer_1s_1#(.CLK_FREQ(clk))
+ timer_1s_1_inst (.iClk(iClk), .iRst(iRst), .oQ(w_en));
+ 
+ localparam OFF = 3'b000;
+ localparam IDLE = 3'b001;
+ localparam UB = 3'b010;
+ localparam LB = 3'b011;
+ localparam RB = 3'b100;
+ localparam SHB = 3'b101; 
+ localparam DB = 3'b110;
+     // control the moving of block
+   reg h_d, v_d;//direction in vertical and horizontal changes, for v_d: 1 down 0 up; for h_d: 0 left  1 right 
+   reg[3:0] rFSM_current, wFSM_next;
+always @(posedge iClk)
+begin 
+  if (iRst ==1)begin
+     rFSM_current <= OFF;
+     end
+  else
+  begin
+    rFSM_current <= wFSM_next;
+    end
+   end
+        
+   always@(*)
+   begin
+   case(rFSM_current)
+   OFF : if ((iPushUp == 1)||(iPushDown == 1)||(iPushLeft == 1)||(iPushRight == 1))begin 
+           wFSM_next <= IDLE;
+          end
+         else wFSM_next <= OFF;
+   IDLE: if (r_Bx == 0)
+           wFSM_next <= LB;
+           else if (r_By == 0)
+           wFSM_next <= UB;
+           else if (r_Bx == 610)
+           wFSM_next <= RB;
+           else if ((r_By == iShapeY) &&(r_Bx >= iShapeX)&&(r_Bx+30 <= iShapeX + iShapeLength))
+           wFSM_next <= SHB;
+           else if (r_By == 450)
+           wFSM_next <= DB;
+           else wFSM_next <= IDLE; 
+  UB:  wFSM_next <= IDLE;
+  LB:  wFSM_next <= IDLE;
+  RB:   wFSM_next <= IDLE;
+  SHB:  wFSM_next <= IDLE;
+  DB:   wFSM_next <= OFF;  
+   
+  default : wFSM_next <= OFF;
+  endcase
+  end
+   
+  always @(posedge w_en)    begin
+   if (rFSM_current == OFF )begin
+         r_Bx <= 290;
+         r_By <= 100;
+         h_d <= 1'b1;
+         v_d <= 1'b1; 
+          
+      end
+      else if (rFSM_current == IDLE)begin
+       if (h_d == 1) begin
+        r_Bx <= r_Bx +1;
+         end
+       else 
+      r_Bx <= r_Bx -1;
+      if (v_d == 1) begin
+      r_By <= r_By +1;
+      end
+       else 
+        r_By <= r_By -1;
+     
+      end 
+   else if (rFSM_current == LB) begin
+        h_d <= 1'b1; 
+        end
+        else if (rFSM_current == RB) begin
+         v_d <= 1'b0;
+         end
+         else if (rFSM_current == SHB  &&(h_d == 1))
+         begin
+         v_d <= 1'b0;
+         h_d <= 1'b0;
+        end
+          else if ((rFSM_current == SHB)&&(h_d == 0))
+         begin
+         v_d <= 1'b0;
+         h_d <= 1'b1;
+        end
+        else if (rFSM_current == UB) begin
+         v_d <= 1'b1;
+         end
+         else if (rFSM_current == DB)begin
+         r_Bx <= 0;
+         r_By <=450;
+       end
+       else;
+       end
+       
+       
+assign oBlockX = r_Bx;
+ assign oBlockY = r_By;
+endmodule
